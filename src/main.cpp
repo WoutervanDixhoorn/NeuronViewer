@@ -11,7 +11,7 @@ struct NeuronNode {
     int32_t id;
     int32_t parent_id;
     glm::vec3 position;
-    float radius; //NOTE: This actually a decimal number mostly below zero. Example: 0.64 -> 64
+    float radius;
     uint32_t type;
 };
 
