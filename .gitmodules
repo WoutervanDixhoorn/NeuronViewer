@@ -1,0 +1,3 @@
+[submodule "vendor/DG"]
+	path = vendor/DG
+	url = git@github.com:WoutervanDixhoorn/Douter-Graphics.git
