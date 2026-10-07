@@ -5,7 +5,13 @@
 #include <sstream>
 #include <fstream>
 
+#include <memory>
+
 #include <glm/glm.hpp>
+
+#include "core/application.h"
+#include "renderer/debugRenderer.h"
+#include "renderer/renderer.h"
 
 struct NeuronNode {
     int32_t id;
@@ -48,7 +54,7 @@ static bool read_swc(std::string file_name, std::vector<NeuronNode>& nodes) {
 
     swc_content.assign((std::istreambuf_iterator<char>(input_file)), std::istreambuf_iterator<char>());
 
-    nodes.reserve(std::count(swc_content.begin(), swc_content.end(), '\r'));
+    nodes.reserve(std::count(swc_content.begin(), swc_content.end(), '\n'));
 
     std::istringstream stream(swc_content);
     std::string line;
@@ -65,18 +71,86 @@ static bool read_swc(std::string file_name, std::vector<NeuronNode>& nodes) {
     return true;
 }
 
+static DG::ApplicationSettings viewerSettings {
+    .windowWidth = 1280,
+    .windowHeight = 720,
+    .windowTitle = "SWC Neuron Viewer"
+};
+
+class ViewerLayer : public DG::Layer {
+private:
+    std::vector<NeuronNode> m_nodes;
+    float m_minX = 0.0f, m_minY = 0.0f;
+    float m_scale = 1.0f;
+    float m_padding = 40.0f;
+
+    DG::Camera m_camera;
+
+public:
+    ViewerLayer() {
+        DG::Renderer2D::Init();
+
+        if (!read_swc("assets/dros-melan.CNG.swc", m_nodes)) {
+            return;
+        }
+
+        m_minY = 1e9f; float maxY = -1e9f;
+        m_minX = 1e9f; float maxX = -1e9f;
+        for (const auto& node : m_nodes) {
+            m_minY = std::min(m_minY, node.position.y);
+            maxY = std::max(maxY, node.position.y);
+
+            m_minX = std::min(m_minX, node.position.x);
+            maxX = std::max(maxX, node.position.x);
+        }
+        const float neuronHeight = maxY - m_minY;
+        const float neuronWidth = maxX - m_minX;
+
+        float screenW = static_cast<float>(viewerSettings.windowWidth);
+        float screenH = static_cast<float>(viewerSettings.windowHeight);
+
+        m_scale = std::min((screenW - 2.0f * m_padding) / neuronWidth, (screenH - 2.0f * m_padding) / neuronHeight);
+
+        m_camera = DG::Camera::Create2D(screenW, screenH, 720.0f);
+    };
+
+    void OnAttach() override {};
+    void OnDettach() override {};
+
+    void OnUpdate(float deltaTime) override {
+        //DG::Renderer2D::Clear(1.0f, 1.0f, 0.5f, 1.0f);
+
+        DG::Renderer2D::BeginScene(m_camera);
+
+        for (const auto& node : m_nodes) {
+            const float x = m_padding + (node.position.x - m_minX) * m_scale;
+            const float y = m_padding + (node.position.y - m_minY) * m_scale;
+
+            DG::DebugRenderer::DrawCircle(glm::vec2{x, y}, 2.0f);
+        }
+
+        DG::Renderer2D::EndScene();
+    };
+
+    void OnGuiDraw() override {};
+
+};
+
+class NeuronViewer : public DG::Application {
+public:
+    NeuronViewer() : DG::Application(viewerSettings) {
+        std::println("Initializing SWC NeuronViewer");
+
+        PushLayer(std::make_unique<ViewerLayer>());
+    }
+};
 
 int main() {
-    std::println("Reading swc file...");
 
-    std::vector<NeuronNode> nodes;
-    if (!read_swc("assets/dros-melan.CNG.swc", nodes)) {
-        return 1;
-    }
 
-    std::println("Reading swc file finished!");
 
-    std::println("Amount of neuron nodes: {}", nodes.size());
+    NeuronViewer viewer;
+    viewer.Run();
 
     return 0;
 }
