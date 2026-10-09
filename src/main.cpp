@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include <memory>
+#include <unordered_map>
 
 #include <glm/glm.hpp>
 
@@ -80,6 +81,8 @@ static DG::ApplicationSettings viewerSettings {
 class ViewerLayer : public DG::Layer {
 private:
     std::vector<NeuronNode> m_nodes;
+    std::unordered_map<int32_t, NeuronNode*> m_nodeMap; //NOTE: For finding parentNode
+
     float m_minX = 0.0f, m_minY = 0.0f;
     float m_scale = 1.0f;
     float m_padding = 40.0f;
@@ -96,7 +99,9 @@ public:
 
         m_minY = 1e9f; float maxY = -1e9f;
         m_minX = 1e9f; float maxX = -1e9f;
-        for (const auto& node : m_nodes) {
+        for (auto& node : m_nodes) {
+            m_nodeMap[node.id] = &node;
+
             m_minY = std::min(m_minY, node.position.y);
             maxY = std::max(maxY, node.position.y);
 
@@ -118,21 +123,44 @@ public:
     void OnDettach() override {};
 
     void OnUpdate(float deltaTime) override {
-        //DG::Renderer2D::Clear(1.0f, 1.0f, 0.5f, 1.0f);
+        DG::Renderer2D::Clear(0.0f, 0.5f, 0.5f, 1.0f);
 
         DG::Renderer2D::BeginScene(m_camera);
 
-        for (const auto& node : m_nodes) {
-            const float x = m_padding + (node.position.x - m_minX) * m_scale;
-            const float y = m_padding + (node.position.y - m_minY) * m_scale;
-
-            DG::DebugRenderer::DrawCircle(glm::vec2{x, y}, 2.0f);
-        }
+        DrawNeuronConnections();
+        //DrawNeuronNodes();
 
         DG::Renderer2D::EndScene();
     };
 
+    //TODO: Should pre calc neuron positions, then recalculate on camera movement. So maybe a camera on matrix changed callback of bool?
+    void DrawNeuronNodes() const {
+        for (const NeuronNode &node : m_nodes) {
+            DG::DebugRenderer::DrawFilledCircle(calculateNeuronPosition(node), 1.0f, {0.3f, 0.3f, 1.0f, 1.0f});
+        }
+    }
+
+    void DrawNeuronConnections() {
+        for (auto& node : m_nodes) {
+            if (node.parent_id == -1) continue; //NOTE: -1 is the root node, so has no parent connection
+
+            const auto currentNodePos = calculateNeuronPosition(node);
+            const auto parentNodePos = calculateNeuronPosition(*m_nodeMap[node.parent_id]);
+
+            DG::DebugRenderer::DrawLine(currentNodePos, parentNodePos, {1.0f, 0.3f, 0.5f, 1.0f});
+        };
+    }
+
+
     void OnGuiDraw() override {};
+
+private:
+    [[nodiscard]] glm::vec2 calculateNeuronPosition(const NeuronNode& node) const {
+        return {
+            m_padding + (node.position.x - m_minX) * m_scale,
+            m_padding + (node.position.y - m_minY) * m_scale
+        };
+    }
 
 };
 
@@ -146,9 +174,6 @@ public:
 };
 
 int main() {
-
-
-
     NeuronViewer viewer;
     viewer.Run();
 
