@@ -11,8 +11,10 @@
 #include <glm/glm.hpp>
 
 #include "core/application.h"
+#include "core/events/keys.h"
 #include "renderer/debugRenderer.h"
 #include "renderer/renderer.h"
+#include "core/events/keys.h"
 
 struct NeuronNode {
     int32_t id;
@@ -64,7 +66,8 @@ static bool read_swc(std::string file_name, std::vector<NeuronNode>& nodes) {
             line.pop_back();
         }
 
-        if (NeuronNode node{}; parse_swc_line(line, node)) {
+        NeuronNode node{};
+        if (parse_swc_line(line, node)) {
             nodes.emplace_back(node);
         }
     }
@@ -83,6 +86,8 @@ private:
     std::vector<NeuronNode> m_nodes;
     std::unordered_map<int32_t, NeuronNode*> m_nodeMap; //NOTE: For finding parentNode
     DG::Camera m_camera;
+
+    float m_xPos = 0.0f, m_yPos = 0.0f, m_zPos = 0.0f;
 
 public:
     ViewerLayer() {
@@ -109,10 +114,13 @@ public:
     };
 
     void OnAttach() override {};
+
     void OnDettach() override {};
 
     void OnUpdate(float deltaTime) override {
         DG::Renderer2D::Clear(0.0f, 0.5f, 0.5f, 1.0f);
+
+        m_camera.SetPosition({m_xPos, m_yPos, m_zPos});
 
         DG::Renderer2D::BeginScene(m_camera);
 
@@ -122,7 +130,33 @@ public:
         DG::Renderer2D::EndScene();
     };
 
-    //TODO: Should pre calc neuron positions, then recalculate on camera movement. So maybe a camera on matrix changed callback of bool?
+    void OnEvent(DG::IEvent& event) override {
+        DG::EventDispatcher dispatcher(event);
+
+        dispatcher.Dispatch<DG::KeyPressedEvent>([&](const DG::KeyPressedEvent& e) {
+            OnKeyPressed(e.GetKey());
+            return false;
+        });
+    }
+
+    void OnKeyPressed(const DG::KeyCode key) {
+        switch (key) {
+            case DG::Key::W:
+                m_yPos -= 5.0f;
+                break;
+            case DG::Key::S:
+                m_yPos += 5.0f;
+                break;
+
+            case DG::Key::A:
+                m_xPos -= 5.0f;
+                break;
+            case DG::Key::D:
+                m_xPos += 5.0f;
+                break;
+        }
+    }
+
     void DrawNeuronNodes() const {
         for (const NeuronNode &node : m_nodes) {
             DG::DebugRenderer::DrawFilledCircle(node.position, 0.2f, {0.3f, 0.3f, 1.0f, 1.0f});
